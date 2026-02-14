@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>浪漫星系 - 3D 轮廓版</title>
+    <title>Our Galaxy</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: "Microsoft YaHei", sans-serif; }
         #cover {
@@ -36,7 +36,7 @@
 <body>
 
 <div id="cover">
-    <button id="start-btn">开启浪漫</button>
+    <button id="start-btn">Touch to start journey</button>
 </div>
 
 <div id="modal" class="modal">
@@ -63,12 +63,12 @@
     const mouse = new THREE.Vector2();
 
     const contentData = {
-        '猫': { emoji: '🐈', title: '灵动如你', text: '你是藏在星光里的猫，偶尔调皮，永远治愈。', img: 'https://picsum.photos/400/300?random=11' },
-        '狗': { emoji: '🐕', title: '忠诚守护', text: '像忠犬一样，我的目光永远追随你的方向。', img: 'https://picsum.photos/400/300?random=12' },
-        '车': { emoji: '🚗', title: '奔赴未来', text: '想带你坐上通往幸福的车，终点站是白头偕老。', img: 'https://picsum.photos/400/300?random=13' },
-        '房': { emoji: '🏠', title: '避风港湾', text: '万家灯火，有一盏是为你而留，那便是家。', img: 'https://picsum.photos/400/300?random=14' },
-        '树': { emoji: '🌲', title: '爱如长青', text: '我们的故事像树一样扎根，在岁月里枝繁叶茂。', img: 'https://picsum.photos/400/300?random=15' },
-        '爱心': { emoji: '❤️', title: '永恒之心', text: '万千星辰汇聚，只为拼凑出一句：我爱你。', img: '' }
+        '猫': { emoji: '🐈', title: '灵动如你', text: '你是藏在星光里的猫，偶尔调皮，永远治愈。', img: '5.jpg' },
+        '狗': { emoji: '🐕', title: '忠诚守护', text: '像忠犬一样，我的目光永远追随你的方向。', img: '3.jpg' },
+        '车': { emoji: '🚅', title: '奔赴未来', text: '想带你坐上通往幸福的车，终点站是白头偕老。', img: '4.jpg' },
+        '房': { emoji: '🏠', title: '避风港湾', text: '万家灯火，有一盏是为你而留，那便是家。', img: '2.jpg' },
+        '树': { emoji: '🌲', title: '爱如长青', text: '我们的故事像树一样扎根，在岁月里枝繁叶茂。', img: '1.jpg' },
+        '爱心': { emoji: '❤️', title: '永恒之心', text: '万千星辰汇聚，只为拼凑出一句：我爱你。', img: '6.jpg' }
     };
 
     init();
@@ -76,28 +76,77 @@
 
     // 核心优化：获取文字/Emoji的像素点阵坐标
     function getShapePoints(text, count) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 100; canvas.height = 100;
-        ctx.fillStyle = 'white';
-        ctx.font = '70px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, 50, 50);
-        
-        const imageData = ctx.getImageData(0, 0, 100, 100).data;
-        const points = [];
-        for (let y = 0; y < 100; y += 2) {
-            for (let x = 0; x < 100; x += 2) {
-                if (imageData[(y * 100 + x) * 4] > 128) {
-                    points.push({ x: (x - 50) / 25, y: (50 - y) / 25 });
-                }
-            }
-        }
-        // 补齐点数
-        while(points.length < count) points.push(points[Math.floor(Math.random()*points.length)]);
-        return points.slice(0, count);
-    }
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		const size = 128; 
+		canvas.width = size; 
+		canvas.height = size;
+
+		ctx.fillStyle = 'white';
+		ctx.font = '90px Arial';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(text, size/2, size/2);
+		
+		const imageData = ctx.getImageData(0, 0, size, size).data;
+		const edgePoints = [];   // 边缘点（细节关键）
+		const interiorPoints = []; // 内部点
+
+		// 1. 扫描像素，区分边缘和内部
+		for (let y = 1; y < size - 1; y++) {
+			for (let x = 1; x < size - 1; x++) {
+				const idx = (y * size + x) * 4;
+				if (imageData[idx + 3] > 128) { // 如果是实心部分
+					// 检查四周是否有透明像素，如果有，说明这是边缘
+					const isEdge = 
+						imageData[((y-1)*size + x)*4 + 3] <= 128 ||
+						imageData[((y+1)*size + x)*4 + 3] <= 128 ||
+						imageData[(y*size + (x-1))*4 + 3] <= 128 ||
+						imageData[(y*size + (x+1))*4 + 3] <= 128;
+
+					const pt = { 
+						x: (x - size/2) / (size/4), 
+						y: (size/2 - y) / (size/4) 
+					};
+
+					if (isEdge) {
+						edgePoints.push(pt);
+					} else {
+						interiorPoints.push(pt);
+					}
+				}
+			}
+		}
+
+		const finalPoints = [];
+		
+		// 2. 策略性分配粒子
+		// 优先保证边缘有足够的粒子（占 60%-70%），这样轮廓和窗户孔洞才会清晰
+		const edgeCount = Math.floor(count * 0.7);
+		const interiorCount = count - edgeCount;
+
+		// 采样边缘
+		for (let i = 0; i < edgeCount; i++) {
+			const p = edgePoints[Math.floor(Math.random() * edgePoints.length)];
+			if(p) finalPoints.push({
+				x: p.x + (Math.random()-0.5)*0.01, // 极小偏移，保持线条锐利
+				y: p.y + (Math.random()-0.5)*0.01
+			});
+		}
+
+		// 采样内部（加入随机稀疏感，防止填死）
+		for (let i = 0; i < interiorCount; i++) {
+			const p = interiorPoints[Math.floor(Math.random() * interiorPoints.length)];
+			if(p) finalPoints.push({
+				x: p.x + (Math.random()-0.5)*0.03,
+				y: p.y + (Math.random()-0.5)*0.03
+			});
+		}
+
+		// 补齐
+		while(finalPoints.length < count) finalPoints.push({x:0, y:0});
+		return finalPoints;
+	}
 
     function init() {
         scene = new THREE.Scene();
@@ -159,7 +208,7 @@
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
         const material = new THREE.PointsMaterial({ 
-            color: 0xffb6c1, size: 0.025, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending 
+            color: 0xffb6c1, size: 0.018, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending 
         });
         particles = new THREE.Points(geometry, material);
         group.add(particles);
